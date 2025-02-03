@@ -2,6 +2,7 @@ import pyodbc
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 import os
+import datetime
 
 # Path to your Access database file
 database_path = r'\\srvfileshare\Departments\9360 - Information Technology\Databases\DesktopInventory\DesktopInventory.accdb'
@@ -477,6 +478,88 @@ def get_selected_item():
     item = major_tree.item(selected) if major_tree.selection() else minor_tree.item(selected)
     return item
 
+def show_deployment_report_options():
+    # Create a new window for selecting items and date range
+    report_window = tk.Toplevel()
+    report_window.title("Major Item Deployment Report")
+    
+    tk.Label(report_window, text="Select Items:").grid(row=0, column=0, padx=10, pady=10)
+    
+    # List of items (you can load this from the database or use predefined items)
+    items_listbox = tk.Listbox(report_window, selectmode=tk.MULTIPLE)
+    items_listbox.grid(row=1, column=0, padx=10, pady=10)
+    items = get_inventory_items()  # Function to get available items
+    for item in items:
+        items_listbox.insert(tk.END, item)
+    
+    tk.Label(report_window, text="Start Date:").grid(row=2, column=0, padx=10, pady=10)
+    start_date_entry = tk.Entry(report_window)
+    start_date_entry.grid(row=3, column=0, padx=10, pady=10)
+    start_date_entry.insert(0, datetime.datetime.now().strftime("%Y-%m-%d"))
+    
+    tk.Label(report_window, text="End Date:").grid(row=4, column=0, padx=10, pady=10)
+    end_date_entry = tk.Entry(report_window)
+    end_date_entry.grid(row=5, column=0, padx=10, pady=10)
+    end_date_entry.insert(0, datetime.datetime.now().strftime("%Y-%m-%d"))
+    
+    def generate_report():
+        selected_items = [items_listbox.get(i) for i in items_listbox.curselection()]
+        start_date = start_date_entry.get()
+        end_date = end_date_entry.get()
+
+        if not selected_items:
+            messagebox.showerror("Error", "Please select at least one item.")
+            return
+        
+        if not start_date or not end_date:
+            messagebox.showerror("Error", "Please enter valid start and end dates.")
+            return
+        
+        # Call the function to generate the report based on selected items and date range
+        generate_major_item_deployment_report(selected_items, start_date, end_date)
+        report_window.destroy()
+
+    tk.Button(report_window, text="Generate Report", command=generate_report).grid(row=6, column=0, padx=10, pady=10)
+
+def generate_major_item_deployment_report():
+    try:
+        # Define the query
+        query = """
+            SELECT ItemName, SUM(QuantityDeployed) AS TotalDeployed
+            FROM ItemDeployment
+            GROUP BY ItemName
+            HAVING SUM(QuantityDeployed) > 0
+            ORDER BY TotalDeployed DESC
+        """
+        
+        # Execute the query using the existing cursor
+        cursor.execute(query)
+        result = cursor.fetchall()
+
+        # Process the result and display in a report (example code)
+        report_data = "\n".join([f"Item: {item[0]}, Total Deployed: {item[1]}" for item in result])
+
+        # Example of how to display the report (you can customize this)
+        messagebox.showinfo("Deployment Report", report_data)
+        
+    except Exception as e:
+        messagebox.showerror("Error", f"Error generating report: {e}")
+
+
+def get_inventory_items():
+    try:
+        # Use the existing connection (conn) and cursor
+        cursor.execute("SELECT DISTINCT Name FROM Items")
+        items = cursor.fetchall()
+        return [item[0] for item in items]
+    except Exception as e:
+        messagebox.showerror("Error", f"Error fetching items: {e}")
+        return []
+
+
+
+
+
 def refresh_all_inventories():
     refresh_inventory(major_tree, 'Major')
     refresh_inventory(minor_tree, 'Minor')
@@ -528,6 +611,7 @@ main_menu.add_cascade(label="Admin", menu=admin_menu)
 # Report Menu
 report_menu = tk.Menu(main_menu, tearoff=0)
 report_menu.add_command(label="Generate Needed Items Report", command=generate_needed_items_report)
+report_menu.add_command(label="Generate Item Deployment Report", command=show_deployment_report_options)
 main_menu.add_cascade(label="Reports", menu=report_menu)
 
 menu_bar.add_cascade(label="Options", menu=main_menu)
